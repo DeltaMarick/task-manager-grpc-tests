@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated gRPC stubs (regenerate with scripts/generate_proto.py)
+src/task_manager/generated/*_pb2.py
+src/task_manager/generated/*_pb2.pyi
+src/task_manager/generated/*_pb2_grpc.py
+
+# Test / report output
+.pytest_cache/
+allure-results/
+allure-report/
+.coverage
