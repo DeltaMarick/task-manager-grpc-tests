@@ -3,15 +3,20 @@
 """
 
 import socket
+import threading
+import time
 from concurrent import futures
 from contextlib import closing
 
 import grpc
 import pytest
+import requests
+import uvicorn
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 from task_manager.generated import task_manager_pb2 as pb2
 from task_manager.generated import task_manager_pb2_grpc as pb2_grpc
+from task_manager.rest_gateway import create_app
 from task_manager.server import SERVICE_NAME
 from task_manager.service import TaskManagerServicer
 
@@ -53,6 +58,38 @@ def health_stub(grpc_server):
     grpc.channel_ready_future(channel).result(timeout=5)
     yield health_pb2_grpc.HealthStub(channel)
     channel.close()
+
+
+def _wait_until_ready(base_url: str, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            requests.get(f"{base_url}/health", timeout=0.5)
+            return
+        except requests.exceptions.ConnectionError:
+            time.sleep(0.05)
+    raise RuntimeError("REST-шлюз не поднялся за отведённое время")
+
+
+@pytest.fixture
+def rest_base_url(grpc_server):
+    """Поднимает REST-шлюз (uvicorn в отдельном потоке) поверх того же
+    тестового gRPC-сервера и возвращает его базовый URL."""
+    app = create_app(f"localhost:{grpc_server}")
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_until_ready(base_url)
+
+    yield base_url
+
+    server.should_exit = True
+    thread.join(timeout=5)
 
 
 @pytest.fixture

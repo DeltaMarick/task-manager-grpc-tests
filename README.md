@@ -4,6 +4,9 @@
 
 gRPC-сервис `TaskManager` (CRUD над задачами, in-memory хранилище)
 на Python, автотесты на pytest поверх реального gRPC-сервера, отчёты Allure.
+Поверх gRPC есть REST-шлюз (FastAPI), транслирующий HTTP/JSON в те же
+gRPC-вызовы — бизнес-логика не дублируется, тестируется один и тот же
+контракт по двум протоколам.
 
 ## Структура
 
@@ -13,10 +16,17 @@ scripts/generate_proto.py       генерация Python-стабов из .pro
 src/task_manager/
   service.py                    бизнес-логика (TaskManagerServicer)
   server.py                     точка входа: поднимает gRPC-сервер
+  rest_gateway.py                REST-приложение (FastAPI), зовёт gRPC-стаб
+  rest_server.py                 точка входа: поднимает REST-шлюз
   generated/                    сгенерированные *_pb2*.py (в .gitignore)
 tests/
   conftest.py                   фикстуры: поднимают сервер на свободном порту
-  test_task_manager.py          сценарии CRUD с Allure-разметкой
+  test_task_manager.py          CRUD-сценарии по gRPC
+  test_rest_gateway.py          те же сценарии по REST (requests)
+  test_health.py                grpc.health.v1
+  test_deadlines.py             таймауты и отмена вызова
+  test_concurrency.py           параллельный доступ (race condition)
+  test_boundary_and_known_issues.py  граничные значения, известные ограничения
 ```
 
 ## Установка
@@ -44,6 +54,18 @@ python -m task_manager.server
 ```
 
 (добавьте `src` в `PYTHONPATH`, либо запускайте из `src/`)
+
+## Запуск REST-шлюза
+
+Требует уже запущенный gRPC-сервер (см. выше):
+
+```powershell
+python -m task_manager.rest_server
+```
+
+Swagger UI (генерируется FastAPI автоматически) — http://localhost:8000/docs.
+Адрес gRPC-сервера можно переопределить переменной окружения
+`TASK_MANAGER_GRPC_TARGET` (по умолчанию `localhost:50051`).
 
 ## Запуск тестов
 
