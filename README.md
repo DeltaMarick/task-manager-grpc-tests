@@ -1,5 +1,7 @@
 # task-manager-grpc-tests
 
+[![CI](https://github.com/DeltaMarick/task-manager-grpc-tests/actions/workflows/ci.yml/badge.svg)](https://github.com/DeltaMarick/task-manager-grpc-tests/actions/workflows/ci.yml)
+
 gRPC-сервис `TaskManager` (CRUD над задачами, in-memory хранилище)
 на Python, автотесты на pytest поверх реального gRPC-сервера, отчёты Allure.
 
