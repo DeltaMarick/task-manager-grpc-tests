@@ -47,3 +47,6 @@ jobs:
           name: coverage-html
           path: htmlcov
           retention-days: 14
+
+      - name: Build Docker image
+        run: docker build -t task-manager-grpc-tests .
