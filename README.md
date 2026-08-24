@@ -21,6 +21,7 @@ src/task_manager/
   generated/                    сгенерированные *_pb2*.py (в .gitignore)
 tests/
   conftest.py                   фикстуры: поднимают сервер на свободном порту
+  grpc_client.py                клиент-обёртка над gRPC-стабом (Service Object)
   test_task_manager.py          CRUD-сценарии по gRPC
   test_rest_gateway.py          те же сценарии по REST (requests)
   test_health.py                grpc.health.v1

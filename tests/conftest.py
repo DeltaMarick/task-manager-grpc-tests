@@ -20,6 +20,8 @@ from task_manager.rest_gateway import create_app
 from task_manager.server import SERVICE_NAME
 from task_manager.service import TaskManagerServicer
 
+from .grpc_client import TaskManagerClient
+
 
 def _free_port() -> int:
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -93,12 +95,18 @@ def rest_base_url(grpc_server):
 
 
 @pytest.fixture
-def create_task(stub):
+def client(stub) -> TaskManagerClient:
+    """Клиент-обёртка над stub, см. tests/grpc_client.py."""
+    return TaskManagerClient(stub)
+
+
+@pytest.fixture
+def create_task(client):
     """Фабричная фикстура: создаёт задачу со значениями по умолчанию,
     переопределяй только нужные тесту поля."""
 
     def _create(title: str = "Task", description: str = "") -> pb2.Task:
-        return stub.CreateTask(pb2.CreateTaskRequest(title=title, description=description))
+        return client.create_task(title=title, description=description)
 
     return _create
 
@@ -120,12 +128,12 @@ def three_task_titles(create_task) -> set[str]:
 
 
 @pytest.fixture
-def tasks_by_status(stub, create_task) -> dict[int, pb2.Task]:
+def tasks_by_status(client, create_task) -> dict[int, pb2.Task]:
     """По одной задаче на каждый статус TaskStatus, ключ словаря — сам статус."""
     tasks = {}
     for status in (pb2.TaskStatus.TODO, pb2.TaskStatus.IN_PROGRESS, pb2.TaskStatus.DONE):
         task = create_task(title=f"task-{status}")
         if status != pb2.TaskStatus.TODO:
-            task = stub.UpdateTask(pb2.UpdateTaskRequest(id=task.id, status=status))
+            task = client.update_task(task.id, status=status)
         tasks[status] = task
     return tasks
