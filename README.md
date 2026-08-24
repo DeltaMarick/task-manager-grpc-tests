@@ -1,6 +1,6 @@
-# grpc-pet-project
+# task-manager-grpc-tests
 
-Pet-проект: gRPC-сервис `TaskManager` (CRUD над задачами, in-memory хранилище)
+gRPC-сервис `TaskManager` (CRUD над задачами, in-memory хранилище)
 на Python, автотесты на pytest поверх реального gRPC-сервера, отчёты Allure.
 
 ## Структура
@@ -52,6 +52,13 @@ pytest
 Тесты сами поднимают сервер в отдельном потоке на свободном порту — внешний
 сервер запускать не нужно. Результаты Allure пишутся в `allure-results/`
 (настроено в `pytest.ini`).
+
+## Линтер и форматтер
+
+```powershell
+ruff check .
+black --check .
+```
 
 ## Просмотр Allure-отчёта
 

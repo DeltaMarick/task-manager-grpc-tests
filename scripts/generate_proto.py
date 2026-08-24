@@ -1,8 +1,9 @@
-"""Regenerates gRPC Python stubs from proto/task_manager.proto.
+"""Перегенерирует Python gRPC-стабы из proto/task_manager.proto.
 
-Run from the project root:
+Запускать из корня проекта:
     python scripts/generate_proto.py
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -30,9 +31,9 @@ def main() -> None:
     ]
     subprocess.run(cmd, check=True, cwd=ROOT)
 
-    # grpc_tools emits `import task_manager_pb2 as ...` (absolute import),
-    # which breaks once the file lives inside a package. Rewrite it to a
-    # package-relative import.
+    # grpc_tools генерирует `import task_manager_pb2 as ...` (абсолютный импорт),
+    # который ломается, когда файл лежит внутри пакета. Переписываем его
+    # на относительный импорт пакета.
     grpc_file = OUT_DIR / "task_manager_pb2_grpc.py"
     text = grpc_file.read_text()
     text = text.replace(

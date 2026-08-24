@@ -4,7 +4,7 @@ package task_manager;
 
 option go_package = "taskmanager/pb";
 
-// TaskManager provides CRUD operations over tasks.
+// TaskManager предоставляет CRUD-операции над задачами.
 service TaskManager {
   rpc CreateTask(CreateTaskRequest) returns (Task);
   rpc GetTask(GetTaskRequest) returns (Task);
@@ -38,7 +38,7 @@ message GetTaskRequest {
 }
 
 message ListTasksRequest {
-  // Optional filter; TODO/IN_PROGRESS/DONE. Unset means "all".
+  // Необязательный фильтр; TODO/IN_PROGRESS/DONE. Если не задан — значит "все".
   optional TaskStatus status_filter = 1;
 }
 

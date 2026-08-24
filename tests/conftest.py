@@ -1,13 +1,15 @@
-"""Shared pytest fixtures: spins up a real TaskManager gRPC server
-in-process on a free port for each test, and hands back a connected stub.
+"""Общие фикстуры pytest: поднимают настоящий gRPC-сервер TaskManager
+в процессе теста на свободном порту и возвращают подключённый stub.
 """
+
+import socket
 from concurrent import futures
 from contextlib import closing
-import socket
 
 import grpc
 import pytest
 
+from task_manager.generated import task_manager_pb2 as pb2
 from task_manager.generated import task_manager_pb2_grpc as pb2_grpc
 from task_manager.service import TaskManagerServicer
 
@@ -35,3 +37,42 @@ def stub(grpc_server):
     grpc.channel_ready_future(channel).result(timeout=5)
     yield pb2_grpc.TaskManagerStub(channel)
     channel.close()
+
+
+@pytest.fixture
+def create_task(stub):
+    """Фабричная фикстура: создаёт задачу со значениями по умолчанию,
+    переопределяй только нужные тесту поля."""
+
+    def _create(title: str = "Task", description: str = "") -> pb2.Task:
+        return stub.CreateTask(pb2.CreateTaskRequest(title=title, description=description))
+
+    return _create
+
+
+@pytest.fixture
+def created_task(create_task) -> pb2.Task:
+    """Одна созданная задача со значениями по умолчанию —
+    для тестов, которым не важно её содержимое."""
+    return create_task()
+
+
+@pytest.fixture
+def three_task_titles(create_task) -> set[str]:
+    """Создаёт три задачи и возвращает их заголовки."""
+    titles = {"A", "B", "C"}
+    for title in titles:
+        create_task(title=title)
+    return titles
+
+
+@pytest.fixture
+def tasks_by_status(stub, create_task) -> dict[int, pb2.Task]:
+    """По одной задаче на каждый статус TaskStatus, ключ словаря — сам статус."""
+    tasks = {}
+    for status in (pb2.TaskStatus.TODO, pb2.TaskStatus.IN_PROGRESS, pb2.TaskStatus.DONE):
+        task = create_task(title=f"task-{status}")
+        if status != pb2.TaskStatus.TODO:
+            task = stub.UpdateTask(pb2.UpdateTaskRequest(id=task.id, status=status))
+        tasks[status] = task
+    return tasks

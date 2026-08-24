@@ -4,130 +4,141 @@ import pytest
 
 from task_manager.generated import task_manager_pb2 as pb2
 
+from .helpers import assert_task_fields
+
+ORIGINAL_TASK = {"title": "Original", "description": "desc", "status": pb2.TaskStatus.TODO}
+
 
 @allure.feature("TaskManager")
-@allure.story("Create task")
+@allure.story("Создание задачи")
+@pytest.mark.smoke
 def test_create_task_returns_task_with_defaults(stub):
-    with allure.step("Create a task with a title"):
+    with allure.step("Создать задачу с указанием title"):
         task = stub.CreateTask(pb2.CreateTaskRequest(title="Buy milk"))
 
-    with allure.step("Verify defaults"):
+    with allure.step("Проверить значения по умолчанию"):
         assert task.id
-        assert task.title == "Buy milk"
-        assert task.status == pb2.TaskStatus.TODO
         assert task.created_at == task.updated_at
+        assert_task_fields(task, title="Buy milk", status=pb2.TaskStatus.TODO)
 
 
 @allure.feature("TaskManager")
-@allure.story("Create task")
+@allure.story("Создание задачи")
+@pytest.mark.negative
 def test_create_task_without_title_is_rejected(stub):
-    with allure.step("Create a task with an empty title"):
+    with allure.step("Создать задачу с пустым title"):
         with pytest.raises(grpc.RpcError) as excinfo:
             stub.CreateTask(pb2.CreateTaskRequest(title=""))
 
-    with allure.step("Verify INVALID_ARGUMENT status"):
+    with allure.step("Проверить статус INVALID_ARGUMENT"):
         assert excinfo.value.code() == grpc.StatusCode.INVALID_ARGUMENT
 
 
 @allure.feature("TaskManager")
-@allure.story("Read task")
-def test_get_task_returns_created_task(stub):
-    with allure.step("Create a task"):
-        created = stub.CreateTask(pb2.CreateTaskRequest(title="Read a book"))
+@allure.story("Чтение задачи")
+@pytest.mark.smoke
+def test_get_task_returns_created_task(stub, created_task):
+    with allure.step("Получить задачу по id"):
+        fetched = stub.GetTask(pb2.GetTaskRequest(id=created_task.id))
 
-    with allure.step("Fetch it by id"):
-        fetched = stub.GetTask(pb2.GetTaskRequest(id=created.id))
-
-    assert fetched == created
-
-
-@allure.feature("TaskManager")
-@allure.story("Read task")
-def test_get_task_missing_id_returns_not_found(stub):
-    with allure.step("Fetch a non-existent task"):
-        with pytest.raises(grpc.RpcError) as excinfo:
-            stub.GetTask(pb2.GetTaskRequest(id="does-not-exist"))
-
-    assert excinfo.value.code() == grpc.StatusCode.NOT_FOUND
+    with allure.step("Полученная задача совпадает с созданной"):
+        assert fetched == created_task
 
 
 @allure.feature("TaskManager")
-@allure.story("List tasks")
-def test_list_tasks_returns_all_created_tasks(stub):
-    with allure.step("Create three tasks"):
-        titles = {"A", "B", "C"}
-        for title in titles:
-            stub.CreateTask(pb2.CreateTaskRequest(title=title))
-
-    with allure.step("List all tasks"):
+@allure.story("Список задач")
+@pytest.mark.smoke
+def test_list_tasks_returns_all_created_tasks(stub, three_task_titles):
+    with allure.step("Получить список всех задач"):
         response = stub.ListTasks(pb2.ListTasksRequest())
 
-    assert {t.title for t in response.tasks} == titles
+    with allure.step("В списке присутствуют все созданные задачи"):
+        assert {t.title for t in response.tasks} == three_task_titles
 
 
 @allure.feature("TaskManager")
-@allure.story("List tasks")
-def test_list_tasks_filters_by_status(stub):
-    with allure.step("Create a task and move it to DONE"):
-        task = stub.CreateTask(pb2.CreateTaskRequest(title="Finish report"))
-        stub.UpdateTask(pb2.UpdateTaskRequest(id=task.id, status=pb2.TaskStatus.DONE))
-        stub.CreateTask(pb2.CreateTaskRequest(title="Still todo"))
+@allure.story("Список задач")
+@pytest.mark.parametrize(
+    "status",
+    [pb2.TaskStatus.TODO, pb2.TaskStatus.IN_PROGRESS, pb2.TaskStatus.DONE],
+    ids=["TODO", "IN_PROGRESS", "DONE"],
+)
+def test_list_tasks_filters_by_status(stub, tasks_by_status, status):
+    with allure.step("Отфильтровать задачи по статусу"):
+        response = stub.ListTasks(pb2.ListTasksRequest(status_filter=status))
 
-    with allure.step("List only DONE tasks"):
-        response = stub.ListTasks(
-            pb2.ListTasksRequest(status_filter=pb2.TaskStatus.DONE)
-        )
-
-    assert [t.title for t in response.tasks] == ["Finish report"]
+    with allure.step("В списке только задача с нужным статусом"):
+        assert [t.id for t in response.tasks] == [tasks_by_status[status].id]
 
 
 @allure.feature("TaskManager")
-@allure.story("Update task")
-def test_update_task_changes_only_requested_fields(stub):
-    with allure.step("Create a task"):
-        task = stub.CreateTask(
-            pb2.CreateTaskRequest(title="Original", description="desc")
-        )
+@allure.story("Обновление задачи")
+@pytest.mark.smoke
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("title", "New title"),
+        ("description", "New description"),
+        ("status", pb2.TaskStatus.IN_PROGRESS),
+    ],
+    ids=["title-only", "description-only", "status-only"],
+)
+def test_update_task_changes_only_requested_field(stub, create_task, field, value):
+    with allure.step("Создать задачу"):
+        task = create_task(title=ORIGINAL_TASK["title"], description=ORIGINAL_TASK["description"])
 
-    with allure.step("Update only the status"):
-        updated = stub.UpdateTask(
-            pb2.UpdateTaskRequest(id=task.id, status=pb2.TaskStatus.IN_PROGRESS)
-        )
+    with allure.step(f"Обновить только поле '{field}'"):
+        updated = stub.UpdateTask(pb2.UpdateTaskRequest(id=task.id, **{field: value}))
 
-    with allure.step("Title and description are unchanged, status is updated"):
-        assert updated.title == "Original"
-        assert updated.description == "desc"
-        assert updated.status == pb2.TaskStatus.IN_PROGRESS
+    with allure.step("Изменилось только указанное поле, остальные остались прежними"):
+        assert_task_fields(updated, **{**ORIGINAL_TASK, field: value})
         assert updated.updated_at >= task.updated_at
 
 
 @allure.feature("TaskManager")
-@allure.story("Update task")
-def test_update_missing_task_returns_not_found(stub):
-    with pytest.raises(grpc.RpcError) as excinfo:
-        stub.UpdateTask(pb2.UpdateTaskRequest(id="does-not-exist", title="X"))
-
-    assert excinfo.value.code() == grpc.StatusCode.NOT_FOUND
-
-
-@allure.feature("TaskManager")
-@allure.story("Delete task")
-def test_delete_existing_task_succeeds_and_removes_it(stub):
-    with allure.step("Create then delete a task"):
-        task = stub.CreateTask(pb2.CreateTaskRequest(title="Temporary"))
-        response = stub.DeleteTask(pb2.DeleteTaskRequest(id=task.id))
-
-    with allure.step("Deletion reported as successful"):
-        assert response.success is True
-
-    with allure.step("Task is no longer retrievable"):
+@allure.story("Обработка ошибок")
+@pytest.mark.negative
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda stub: stub.GetTask(pb2.GetTaskRequest(id="does-not-exist")), id="get"),
+        pytest.param(
+            lambda stub: stub.UpdateTask(pb2.UpdateTaskRequest(id="does-not-exist", title="X")),
+            id="update",
+        ),
+    ],
+)
+def test_missing_task_returns_not_found(stub, call):
+    with allure.step("Вызвать RPC с несуществующим id"):
         with pytest.raises(grpc.RpcError) as excinfo:
-            stub.GetTask(pb2.GetTaskRequest(id=task.id))
+            call(stub)
+
+    with allure.step("Проверить статус NOT_FOUND"):
         assert excinfo.value.code() == grpc.StatusCode.NOT_FOUND
 
 
 @allure.feature("TaskManager")
-@allure.story("Delete task")
+@allure.story("Удаление задачи")
+@pytest.mark.smoke
+def test_delete_existing_task_succeeds_and_removes_it(stub, created_task):
+    with allure.step("Удалить задачу"):
+        response = stub.DeleteTask(pb2.DeleteTaskRequest(id=created_task.id))
+
+    with allure.step("Удаление прошло успешно"):
+        assert response.success is True
+
+    with allure.step("Задача больше недоступна"):
+        with pytest.raises(grpc.RpcError) as excinfo:
+            stub.GetTask(pb2.GetTaskRequest(id=created_task.id))
+        assert excinfo.value.code() == grpc.StatusCode.NOT_FOUND
+
+
+@allure.feature("TaskManager")
+@allure.story("Удаление задачи")
+@pytest.mark.negative
 def test_delete_missing_task_reports_failure(stub):
-    response = stub.DeleteTask(pb2.DeleteTaskRequest(id="does-not-exist"))
-    assert response.success is False
+    with allure.step("Удалить несуществующую задачу"):
+        response = stub.DeleteTask(pb2.DeleteTaskRequest(id="does-not-exist"))
+
+    with allure.step("Операция сообщает о неудаче"):
+        assert response.success is False

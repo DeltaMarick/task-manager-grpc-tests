@@ -1,4 +1,5 @@
-"""In-memory TaskManager gRPC servicer implementation."""
+"""Реализация gRPC-сервиса TaskManager с хранением задач в памяти."""
+
 import time
 import uuid
 from threading import Lock
@@ -10,7 +11,7 @@ from task_manager.generated import task_manager_pb2_grpc as pb2_grpc
 
 
 class TaskManagerServicer(pb2_grpc.TaskManagerServicer):
-    """Stores tasks in memory, keyed by id. Not persisted across restarts."""
+    """Хранит задачи в памяти по id. Данные не сохраняются между перезапусками."""
 
     def __init__(self) -> None:
         self._tasks: dict[str, pb2.Task] = {}

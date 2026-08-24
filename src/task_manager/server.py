@@ -1,4 +1,5 @@
-"""Standalone entry point: runs the TaskManager gRPC server."""
+"""Точка входа: запускает gRPC-сервер TaskManager."""
+
 from concurrent import futures
 
 import grpc
