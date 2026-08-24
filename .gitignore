@@ -13,3 +13,4 @@ src/task_manager/generated/*_pb2_grpc.py
 allure-results/
 allure-report/
 .coverage
+htmlcov/
