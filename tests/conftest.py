@@ -8,9 +8,11 @@ from contextlib import closing
 
 import grpc
 import pytest
+from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 from task_manager.generated import task_manager_pb2 as pb2
 from task_manager.generated import task_manager_pb2_grpc as pb2_grpc
+from task_manager.server import SERVICE_NAME
 from task_manager.service import TaskManagerServicer
 
 
@@ -24,6 +26,12 @@ def _free_port() -> int:
 def grpc_server():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     pb2_grpc.add_TaskManagerServicer_to_server(TaskManagerServicer(), server)
+
+    health_servicer = health.HealthServicer()
+    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+    health_servicer.set(SERVICE_NAME, health_pb2.HealthCheckResponse.SERVING)
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
+
     port = _free_port()
     server.add_insecure_port(f"[::]:{port}")
     server.start()
@@ -36,6 +44,14 @@ def stub(grpc_server):
     channel = grpc.insecure_channel(f"localhost:{grpc_server}")
     grpc.channel_ready_future(channel).result(timeout=5)
     yield pb2_grpc.TaskManagerStub(channel)
+    channel.close()
+
+
+@pytest.fixture
+def health_stub(grpc_server):
+    channel = grpc.insecure_channel(f"localhost:{grpc_server}")
+    grpc.channel_ready_future(channel).result(timeout=5)
+    yield health_pb2_grpc.HealthStub(channel)
     channel.close()
 
 
